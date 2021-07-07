@@ -3,25 +3,24 @@ import torch.nn.functional as F
 from torch.distributions import Categorical
 import numpy as np
 from CharRNN import RNN
-
+from preprocess import replace_unknown_chars
+from vars import MODEL_PATH, CHARS_PATH, DATA_PATH
+from vars import HIDDEN_SIZE, NUM_LAYERS
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def test():
     ############ Hyperparameters ############
-    hidden_size = 512   # size of hidden state
-    num_layers = 3      # num of layers in LSTM layer stack
+    hidden_size = HIDDEN_SIZE   # size of hidden state
+    num_layers = NUM_LAYERS      # num of layers in LSTM layer stack
     op_seq_len = 1000   # total num of characters in output test sequence
     
-    load_path = "./preTrained/CharRNN_shakespeare.pth"
-    data_path = "./data/shakespeare.txt"
-    
-#    load_path = "./preTrained/CharRNN_sherlock.pth"
-#    data_path = "./data/sherlock.txt"
-    #########################################
-    
     # load the text file
-    data = open(data_path, 'r').read()
-    chars = sorted(list(set(data)))
+    data = open(DATA_PATH, 'r', encoding='utf-8').read()
+    try:
+        chars = open(CHARS_PATH, 'r', encoding='utf-8').read()
+    except FileNotFoundError:
+        chars = sorted(list(set(data)))
+    data = replace_unknown_chars(data, chars)
     data_size, vocab_size = len(data), len(chars)
     print("----------------------------------------")
     print("Data has {} characters, {} unique".format(data_size, vocab_size))
@@ -42,7 +41,7 @@ def test():
     
     # create and load model instance
     rnn = RNN(vocab_size, vocab_size, hidden_size, num_layers).to(device)
-    rnn.load_state_dict(torch.load(load_path))
+    rnn.load_state_dict(torch.load(MODEL_PATH))
     print("Model loaded successfully !!")
     
     # initialize variables

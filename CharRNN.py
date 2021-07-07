@@ -4,6 +4,10 @@ import torch.nn.functional as F
 from torch.distributions import Categorical
 import numpy as np
 
+from preprocess import replace_unknown_chars, replace_rare_chars
+from vars import MODEL_PATH, CHARS_PATH, DATA_PATH
+from vars import HIDDEN_SIZE, NUM_LAYERS
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class RNN(nn.Module):
@@ -21,20 +25,22 @@ class RNN(nn.Module):
     
 def train():
     ########### Hyperparameters ###########
-    hidden_size = 512   # size of hidden state
+    hidden_size = HIDDEN_SIZE   # size of hidden state
     seq_len = 100       # length of LSTM sequence
-    num_layers = 3      # num of layers in LSTM layer stack
+    num_layers = NUM_LAYERS      # num of layers in LSTM layer stack
     lr = 0.002          # learning rate
     epochs = 100        # max number of epochs
     op_seq_len = 200    # total num of characters in output test sequence
-    load_chk = False    # load weights from save_path directory to continue training
-    save_path = "./preTrained/CharRNN_shakespeare.pth"
-    data_path = "./data/shakespeare.txt"
-    #######################################
-    
+    load_chk = False    # load weights from MODEL_PATH directory to continue training
+
     # load the text file
-    data = open(data_path, 'r').read()
-    chars = sorted(list(set(data)))
+    data = open(DATA_PATH, 'r', encoding='utf-8').read()
+    if load_chk:
+        chars = open(CHARS_PATH, 'r', encoding='utf-8').read()
+        data = replace_unknown_chars(data, chars)
+    else:
+        data, chars = replace_rare_chars(data)
+        open(CHARS_PATH, 'w', encoding='utf-8').write(chars)
     data_size, vocab_size = len(data), len(chars)
     print("----------------------------------------")
     print("Data has {} characters, {} unique".format(data_size, vocab_size))
@@ -58,7 +64,7 @@ def train():
     
     # load checkpoint if True
     if load_chk:
-        rnn.load_state_dict(torch.load(save_path))
+        rnn.load_state_dict(torch.load(MODEL_PATH))
         print("Model loaded successfully !!")
         print("----------------------------------------")
     
@@ -90,18 +96,23 @@ def train():
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            
+
             # update the data pointer
             data_ptr += seq_len
             n +=1
-            
+
             # if at end of data : break
             if data_ptr + seq_len + 1 > data_size:
                 break
-            
+
+            if n % 20 == 0:
+                print(f'{data_ptr} of {data_size} chars done in this epoch.')
+                torch.save(rnn.state_dict(), MODEL_PATH)
+
+
         # print loss and save weights after every epoch
         print("Epoch: {0} \t Loss: {1:.8f}".format(i_epoch, running_loss/n))
-        torch.save(rnn.state_dict(), save_path)
+        torch.save(rnn.state_dict(), MODEL_PATH)
         
         # sample / generate a text sequence after every epoch
         data_ptr = 0
